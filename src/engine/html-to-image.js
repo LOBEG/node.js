@@ -174,6 +174,11 @@ class HtmlToImageConverter {
 
       // Load content
       if (input.type === "url") {
+        // Validate URL to prevent SSRF attacks — only allow http/https protocols
+        const parsedUrl = new URL(input.source);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+          throw new Error("Invalid URL protocol. Only http and https URLs are allowed.");
+        }
         await page.goto(input.source, {
           waitUntil: merged.waitUntil,
           timeout: merged.timeout,

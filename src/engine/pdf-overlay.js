@@ -434,8 +434,9 @@ class PdfOverlayEngine {
         }
       }
     } catch (_embedErr) {
-      // If image embedding fails, silently continue — the PDF is still valid
+      // If image embedding fails, log and continue — the PDF is still valid
       // but without the embedded image
+      console.warn("Image embed failed (PDF generated without image):", _embedErr.message);
     }
   }
 

@@ -513,7 +513,7 @@ function createServer(options = {}) {
         try {
           overrides.embedImageHotspots = JSON.parse(req.body.embedImageHotspots);
         } catch (_) {
-          // If hotspots JSON is invalid, ignore it silently
+          console.warn("Invalid embedImageHotspots JSON — ignoring hotspot data");
         }
       }
 
