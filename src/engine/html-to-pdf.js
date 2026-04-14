@@ -339,7 +339,7 @@ class HtmlToPdfConverter {
               wrapper.style.color = "inherit";
               wrapper.style.textDecoration = "none";
               wrapper.style.cursor = "inherit";
-              wrapper.style.display = el.style.display === "inline" ? "inline" : (el.style.display || "inline-block");
+              wrapper.style.display = window.getComputedStyle(el).display || "inline-block";
               // Preserve the element's position in the DOM
               el.parentNode.insertBefore(wrapper, el);
               wrapper.appendChild(el);
