@@ -43,6 +43,12 @@ function createServer(options = {}) {
   // Allow the process to exit despite the interval
   if (csrfCleanupInterval.unref) csrfCleanupInterval.unref();
 
+  // Paths that bypass bot protection middleware (health, public assets, root, etc.)
+  const UNPROTECTED_PATHS = new Set(["/health", "/", "/csrf-token", "/templates"]);
+  function shouldBypassProtection(req) {
+    return UNPROTECTED_PATHS.has(req.path) || req.path.startsWith("/public");
+  }
+
   // CSRF token endpoint
   app.get("/csrf-token", (_req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
@@ -52,11 +58,7 @@ function createServer(options = {}) {
 
   // 2. User-Agent validation — block requests with missing or suspicious UAs
   app.use((req, res, next) => {
-    // Skip for health check, static assets, root page, and CSRF token
-    if (req.path === "/health" || req.path === "/" || req.path === "/csrf-token" ||
-        req.path === "/templates" || req.path.startsWith("/public")) {
-      return next();
-    }
+    if (shouldBypassProtection(req)) return next();
     if (req.method !== "POST") return next();
 
     const ua = req.headers["user-agent"] || "";
@@ -82,9 +84,7 @@ function createServer(options = {}) {
   if (csrfEnabled) {
     app.use((req, res, next) => {
       if (req.method !== "POST") return next();
-
-      // Skip CSRF for health and static
-      if (req.path === "/health" || req.path.startsWith("/public")) return next();
+      if (shouldBypassProtection(req)) return next();
 
       const token = req.headers["x-csrf-token"] || req.query._csrf;
       if (!token || !csrfTokens.has(token)) {
@@ -105,11 +105,7 @@ function createServer(options = {}) {
   const apiKey = process.env.API_KEY;
   if (apiKey) {
     app.use((req, res, next) => {
-      // Skip auth for health check, static assets, and the root page
-      if (req.path === "/health" || req.path === "/" || req.path === "/csrf-token" ||
-          req.path === "/templates" || req.path.startsWith("/public")) {
-        return next();
-      }
+      if (shouldBypassProtection(req)) return next();
       const provided = req.headers["x-api-key"] || req.query.apiKey;
       if (provided !== apiKey) {
         return res.status(401).json({ error: "Unauthorized — provide a valid API key via X-API-Key header or ?apiKey= query parameter." });
