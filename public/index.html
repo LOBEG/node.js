@@ -968,7 +968,7 @@
         const token = await getCsrfToken();
         if (!opts.headers) opts.headers = {};
         if (typeof opts.headers.set === "function") {
-          // Headers object (for FormData)
+          opts.headers.set("X-CSRF-Token", token);
         } else {
           opts.headers["X-CSRF-Token"] = token;
         }
