@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Engine — Generate &amp; Convert PDFs</title>
+  <style>
+    /* ---- Reset & Base ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: #fff;
+      padding: 32px 24px 28px;
+      text-align: center;
+    }
+    .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .header p { font-size: 15px; opacity: 0.85; max-width: 600px; margin: 0 auto; }
+
+    /* ---- Tab navigation ---- */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      background: #e2e6ea;
+      padding: 6px;
+      border-radius: 12px;
+      max-width: 780px;
+      margin: -20px auto 0;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 11px 12px;
+      border: none;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 600;
+      color: #555;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.6); }
+    .tab-btn.active { background: #fff; color: #0f3460; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+
+    /* ---- Main content ---- */
+    .container { max-width: 780px; margin: 28px auto; padding: 0 16px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 32px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+      display: none;
+    }
+    .card.active { display: block; }
+    .card h2 { font-size: 20px; margin-bottom: 4px; color: #1a1a2e; }
+    .card .subtitle { font-size: 14px; color: #666; margin-bottom: 20px; }
+
+    /* ---- Form elements ---- */
+    label { display: block; font-size: 13px; font-weight: 600; color: #444; margin-bottom: 5px; margin-top: 16px; }
+    label:first-of-type { margin-top: 0; }
+    input[type="text"], input[type="url"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      background: #fafbfc;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #0f3460; background: #fff; }
+    textarea { resize: vertical; min-height: 120px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 13px; }
+
+    /* ---- Drop zone ---- */
+    .drop-zone {
+      border: 2px dashed #c5cad3;
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fafbfc;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #0f3460; background: #f0f4ff; }
+    .drop-zone .icon { font-size: 36px; margin-bottom: 8px; }
+    .drop-zone .label { font-size: 15px; font-weight: 600; color: #333; }
+    .drop-zone .hint { font-size: 13px; color: #888; margin-top: 4px; }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .file-name { margin-top: 8px; font-size: 13px; color: #0f3460; font-weight: 600; }
+
+    /* ---- Options row ---- */
+    .options-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .options-row > div { flex: 1; min-width: 140px; }
+
+    /* ---- Button ---- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 24px;
+      padding: 12px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .btn-primary { background: #0f3460; color: #fff; }
+    .btn-primary:hover { background: #122d52; }
+    .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    /* ---- Status bar ---- */
+    .status {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    .status.info { display: block; background: #e8f0fe; color: #1a56db; }
+    .status.success { display: block; background: #def7ec; color: #03543f; }
+    .status.error { display: block; background: #fde8e8; color: #9b1c1c; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Footer ---- */
+    .footer {
+      text-align: center;
+      padding: 24px 16px 32px;
+      font-size: 13px;
+      color: #999;
+    }
+    .footer a { color: #0f3460; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 600px) {
+      .tabs { flex-wrap: wrap; }
+      .tab-btn { font-size: 12px; padding: 9px 8px; }
+      .card { padding: 20px 18px; }
+      .options-row { flex-direction: column; }
+    }
+
+    /* ---- PDF Preview Panel ---- */
+    .preview-panel {
+      display: none;
+      margin-top: 20px;
+      border: 2px solid #d1d5db;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f5f5f5;
+    }
+    .preview-panel.active { display: block; }
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .preview-header .preview-actions { display: flex; gap: 8px; }
+    .preview-header .preview-btn {
+      padding: 6px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .preview-btn-download { background: #2563EB; color: #fff; }
+    .preview-btn-download:hover { background: #1d4ed8; }
+    .preview-btn-close { background: rgba(255,255,255,0.15); color: #fff; }
+    .preview-btn-close:hover { background: rgba(255,255,255,0.25); }
+    .preview-frame-wrapper {
+      position: relative;
+      width: 100%;
+      height: 600px;
+      background: #e0e0e0;
+    }
+    .preview-frame-wrapper iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    /* Draggable CTA overlay marker */
+    .cta-drag-marker {
+      display: none;
+      position: absolute;
+      background: rgba(37, 99, 235, 0.85);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: grab;
+      user-select: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      z-index: 10;
+      white-space: nowrap;
+      transition: box-shadow 0.15s;
+    }
+    .cta-drag-marker:active { cursor: grabbing; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    .cta-drag-marker.active { display: block; }
+    .drag-hint {
+      display: none;
+      margin-top: 8px;
+      padding: 10px 14px;
+      background: #fef3c7;
+      color: #92400e;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .drag-hint.active { display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>📄 PDF Engine</h1>
+    <p>Upload HTML files, paste URLs, or use templates — generate professional PDFs instantly.</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="upload">Upload HTML</button>
+    <button class="tab-btn" data-tab="url">URL → PDF</button>
+    <button class="tab-btn" data-tab="overlay">PDF Overlay</button>
+    <button class="tab-btn" data-tab="batch">Batch Overlay</button>
+    <button class="tab-btn" data-tab="merge">Merge PDFs</button>
+    <button class="tab-btn" data-tab="template">Templates</button>
+    <button class="tab-btn" data-tab="spec">Raw Spec</button>
+  </div>
+
+  <div class="container">
+
+    <!-- ============================================================ -->
+    <!-- TAB 1: Upload HTML file                                       -->
+    <!-- ============================================================ -->
+    <div class="card active" id="tab-upload">
+      <h2>Convert HTML File to PDF</h2>
+      <p class="subtitle">Upload any .html file from your computer and download a high-fidelity PDF.</p>
+
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="htmlFile" accept=".html,.htm">
+        <div class="icon">📁</div>
+        <div class="label">Drag &amp; drop your HTML file here</div>
+        <div class="hint">or click to browse — .html / .htm</div>
+      </div>
+      <div class="file-name" id="fileName"></div>
+
+      <div class="options-row" style="margin-top: 20px;">
+        <div>
+          <label for="uploadFormat">Page Format</label>
+          <select id="uploadFormat">
+            <option value="A4" selected>A4 (default)</option>
+            <option value="Letter">US Letter</option>
+            <option value="Legal">US Legal</option>
+            <option value="A3">A3</option>
+          </select>
+        </div>
+        <div>
+          <label for="uploadFilename">Output Filename</label>
+          <input type="text" id="uploadFilename" placeholder="converted.pdf">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btnUpload" disabled>
+        Generate PDF
+      </button>
+      <div class="status" id="statusUpload"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 2: URL → PDF                                              -->
+    <!-- ============================================================ -->
+    <div class="card" id="tab-url">
+      <h2>Convert URL to PDF</h2>
+      <p class="subtitle">Enter any web page URL and download it as a PDF.</p>
+
+      <label for="urlInput">Web Page URL</label>
+      <input type="url" id="urlInput" placeholder="https://example.com">
+
+      <div class="options-row" style="margin-top: 16px;">
+        <div>
+          <label for="urlFormat">Page Format</label>
+          <select id="urlFormat">
+            <option value="A4" selected>A4</option>
+            <option value="Letter">US Letter</option>
+            <option value="Legal">US Legal</option>
+            <option value="A3">A3</option>
+          </select>
+        </div>
+        <div>
+          <label for="urlFilename">Output Filename</label>
+          <input type="text" id="urlFilename" placeholder="page.pdf">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btnUrl">
+        Generate PDF
+      </button>
+      <div class="status" id="statusUrl"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 3: PDF Overlay (upload PDF → blur + CTA)                  -->
+    <!-- ============================================================ -->
+    <div class="card" id="tab-overlay">
+      <h2>PDF Overlay — Blur &amp; CTA</h2>
+      <p class="subtitle">Upload any PDF, apply a frosted-glass blur, and add a clickable CTA (button or QR code).</p>
+
+      <div class="drop-zone" id="dropZonePdf">
+        <input type="file" id="pdfFile" accept=".pdf">
+        <div class="icon">📄</div>
+        <div class="label">Drag &amp; drop your PDF here</div>
+        <div class="hint">or click to browse — .pdf files only</div>
+      </div>
+      <div class="file-name" id="pdfFileName"></div>
+
+      <!-- CTA Type Toggle -->
+      <div class="options-row" style="margin-top: 16px;">
+        <div>
+          <label for="ctaType">CTA Type</label>
+          <select id="ctaType">
+            <option value="button" selected>🔘 Button</option>
+            <option value="qrCode">📱 QR Code</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="ctaUrl">CTA Link URL</label>
+      <input type="url" id="ctaUrl" placeholder="https://example.com/view">
+
+      <!-- Button-specific fields -->
+      <div id="buttonFields">
+        <label for="ctaText">Button Text</label>
+        <input type="text" id="ctaText" placeholder="Click to View" value="Click to View">
+      </div>
+
+      <!-- QR-specific fields -->
+      <div id="qrFields" style="display: none;">
+        <label for="ctaLabel">Label Below QR Code</label>
+        <input type="text" id="ctaLabel" placeholder="Scan to View Document" value="Scan to View Document">
+
+        <div class="options-row" style="margin-top: 8px;">
+          <div>
+            <label for="qrSize">QR Code Size (pt)</label>
+            <select id="qrSize">
+              <option value="100">Small (100)</option>
+              <option value="140" selected>Medium (140)</option>
+              <option value="180">Large (180)</option>
+              <option value="220">Extra Large (220)</option>
+            </select>
+          </div>
+          <div>
+            <label for="qrColor">QR Code Color</label>
+            <input type="color" id="qrColor" value="#1a1a2e" style="height: 38px; padding: 2px;">
+          </div>
+          <div>
+            <label for="qrBackground">QR Background</label>
+            <input type="color" id="qrBackground" value="#FFFFFF" style="height: 38px; padding: 2px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Blur Controls -->
+      <div class="options-row" style="margin-top: 16px;">
+        <div>
+          <label for="blurStyle">Blur Style</label>
+          <select id="blurStyle">
+            <option value="glass" selected>🧊 Frosted Glass</option>
+            <option value="standard">🌫️ Standard Gaussian</option>
+          </select>
+        </div>
+        <div>
+          <label for="overlayOpacity">Overlay Tint Strength</label>
+          <select id="overlayOpacity">
+            <option value="0.10">10% — Very light</option>
+            <option value="0.15" selected>15% — Default</option>
+            <option value="0.25">25% — Moderate tint</option>
+            <option value="0.40">40% — Heavy tint</option>
+          </select>
+        </div>
+        <div>
+          <label for="overlayColor">Overlay Tint</label>
+          <input type="color" id="overlayColor" value="#FFFFFF" style="height: 38px; padding: 2px;">
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <label for="blurRadius">Blur Strength: <strong id="blurRadiusValue">5</strong></label>
+        <input type="range" id="blurRadius" min="1" max="40" value="5" step="1"
+               style="width: 100%; height: 8px; cursor: pointer;"
+               oninput="document.getElementById('blurRadiusValue').textContent = this.value">
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 2px;">
+          <span>Light (1)</span><span>Default (5)</span><span>Heavy (15)</span><span>Max (40)</span>
+        </div>
+      </div>
+
+      <!-- Pages to Blur -->
+      <div class="options-row" style="margin-top: 12px;">
+        <div>
+          <label for="blurPagesPreset">Pages to Blur</label>
+          <select id="blurPagesPreset" onchange="handleBlurPagesPreset()">
+            <option value="all" selected>All Pages</option>
+            <option value="first">First Page Only</option>
+            <option value="last">Last Page Only</option>
+            <option value="custom">Custom Range…</option>
+          </select>
+        </div>
+        <div id="blurPagesCustomWrapper" style="display: none;">
+          <label for="blurPages">Page Range</label>
+          <input type="text" id="blurPages" placeholder="e.g. 1-3 or 1,3,5"
+                 style="font-size: 14px;">
+          <div style="font-size: 11px; color: #888; margin-top: 2px;">
+            Use <strong>1-3</strong> for a range, <strong>1,3,5</strong> for specific pages, or mix: <strong>1-3,7</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Button color/sizing (shown only for button CTA type) -->
+      <div id="buttonStyling">
+        <div class="options-row" style="margin-top: 12px;">
+          <div>
+            <label for="ctaStyle">Button Style</label>
+            <select id="ctaStyle">
+              <option value="rounded" selected>🔵 Rounded</option>
+              <option value="square">⬜ Square</option>
+              <option value="outline">⭕ Outline</option>
+              <option value="pill">💊 Pill</option>
+              <option value="gradient">🌈 Gradient</option>
+              <option value="shadow3d">🎯 3D Shadow</option>
+              <option value="banner">📢 Banner (Full Width)</option>
+              <option value="minimal">✨ Minimal (Text Only)</option>
+            </select>
+          </div>
+          <div>
+            <label for="ctaBgColor">Button Color</label>
+            <input type="color" id="ctaBgColor" value="#2563EB" style="height: 38px; padding: 2px;">
+          </div>
+          <div>
+            <label for="ctaTextColor">Text Color</label>
+            <input type="color" id="ctaTextColor" value="#FFFFFF" style="height: 38px; padding: 2px;">
+          </div>
+          <div>
+            <label for="ctaIcon">Icon Prefix</label>
+            <select id="ctaIcon">
+              <option value="" selected>None</option>
+              <option value=">>">&#x226B; Arrow (>>)</option>
+              <option value="[>]">[>] Play</option>
+              <option value="*">&#x2217; Star (*)</option>
+              <option value="+">+ Plus</option>
+              <option value="(i)">(i) Info</option>
+              <option value="(!)">(!) Alert</option>
+              <option value="->">-> Right Arrow</option>
+              <option value="#"># Hash</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="options-row" style="margin-top: 8px;">
+          <div>
+            <label for="ctaBorderRadius">Corner Radius: <strong id="ctaBorderRadiusValue">8</strong></label>
+            <input type="range" id="ctaBorderRadius" min="0" max="24" value="8" step="1"
+                   style="width: 100%; height: 8px; cursor: pointer;"
+                   oninput="document.getElementById('ctaBorderRadiusValue').textContent = this.value">
+          </div>
+        </div>
+
+        <div class="options-row" style="margin-top: 8px;">
+          <div>
+            <label for="ctaWidth">Button Width (pt)</label>
+            <select id="ctaWidth">
+              <option value="120">Small (120)</option>
+              <option value="180" selected>Medium (180)</option>
+              <option value="240">Large (240)</option>
+              <option value="320">Extra Large (320)</option>
+            </select>
+          </div>
+          <div>
+            <label for="ctaHeight">Button Height (pt)</label>
+            <select id="ctaHeight">
+              <option value="28">Small (28)</option>
+              <option value="44" selected>Medium (44)</option>
+              <option value="52">Large (52)</option>
+              <option value="60">Extra Large (60)</option>
+            </select>
+          </div>
+          <div>
+            <label for="ctaFontSize">Font Size (pt)</label>
+            <select id="ctaFontSize">
+              <option value="10">10 pt</option>
+              <option value="14" selected>14 pt</option>
+              <option value="18">18 pt</option>
+              <option value="22">22 pt</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="options-row" style="margin-top: 8px;">
+        <div>
+          <label for="overlayFilename">Output Filename</label>
+          <input type="text" id="overlayFilename" placeholder="overlay.pdf">
+        </div>
+      </div>
+
+      <!-- Rendering Quality -->
+      <div class="options-row" style="margin-top: 12px;">
+        <div>
+          <label for="dpi">Rendering Quality (DPI)</label>
+          <select id="dpi">
+            <option value="150">Fast (150 DPI)</option>
+            <option value="200" selected>Default (200 DPI)</option>
+            <option value="300">High Quality (300 DPI)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Watermark -->
+      <div class="options-row" style="margin-top: 12px;">
+        <div>
+          <label for="watermarkText">Watermark Text <span style="font-weight:normal;color:#888;">(optional)</span></label>
+          <input type="text" id="watermarkText" placeholder="e.g. PREVIEW, SAMPLE, CONFIDENTIAL">
+        </div>
+        <div>
+          <label for="watermarkColor">Watermark Color</label>
+          <input type="color" id="watermarkColor" value="#000000" style="height: 38px; padding: 2px;">
+        </div>
+        <div>
+          <label for="watermarkOpacity">Watermark Opacity</label>
+          <select id="watermarkOpacity">
+            <option value="0.05">5% — Very faint</option>
+            <option value="0.08" selected>8% — Default</option>
+            <option value="0.12">12% — Moderate</option>
+            <option value="0.18">18% — Prominent</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- PDF Metadata -->
+      <details style="margin-top: 12px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; background: #f9fafb;">
+        <summary style="cursor: pointer; font-weight: 600; color: #555;">📋 PDF Metadata (optional)</summary>
+        <div class="options-row" style="margin-top: 8px;">
+          <div>
+            <label for="metaTitle">Title</label>
+            <input type="text" id="metaTitle" placeholder="e.g. Invoice #1234">
+          </div>
+          <div>
+            <label for="metaAuthor">Author</label>
+            <input type="text" id="metaAuthor" placeholder="e.g. Your Company Name">
+          </div>
+          <div>
+            <label for="metaSubject">Subject</label>
+            <input type="text" id="metaSubject" placeholder="e.g. Protected Invoice Document">
+          </div>
+        </div>
+      </details>
+
+      <button class="btn btn-primary" id="btnOverlay" disabled>
+        Preview &amp; Apply Overlay
+      </button>
+      <div class="status" id="statusOverlay"></div>
+
+      <!-- Preview panel with draggable CTA -->
+      <div class="preview-panel" id="previewPanel">
+        <div class="preview-header">
+          <span>📄 PDF Preview</span>
+          <div class="preview-actions">
+            <button class="preview-btn preview-btn-download" id="btnPreviewDownload">⬇ Download PDF</button>
+            <button class="preview-btn preview-btn-close" id="btnPreviewClose">✕ Close</button>
+          </div>
+        </div>
+        <div class="drag-hint active" id="dragHint">
+          <strong>Tip:</strong> Drag the CTA button marker on the preview to reposition it, then click "Download PDF" to generate with your custom position.
+        </div>
+        <div class="preview-frame-wrapper" id="previewWrapper">
+          <iframe id="previewFrame"></iframe>
+          <div class="cta-drag-marker" id="ctaDragMarker">⊞ CTA Position</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB: Batch Overlay (process multiple PDFs with same settings) -->
+    <!-- ============================================================ -->
+    <div class="card" id="tab-batch">
+      <h2>Batch Overlay</h2>
+      <p class="subtitle">Upload multiple PDF files and apply the same blur + CTA overlay to all of them. Results are merged into a single output PDF.</p>
+
+      <div class="drop-zone" id="dropZoneBatch">
+        <input type="file" id="batchFiles" accept=".pdf" multiple>
+        <div class="icon">📚</div>
+        <div class="label">Drag &amp; drop multiple PDF files here</div>
+        <div class="hint">or click to browse — select up to 10 .pdf files</div>
+      </div>
+      <div class="file-name" id="batchFileNames"></div>
+
+      <div class="options-row" style="margin-top: 12px;">
+        <div>
+          <label for="batchCtaUrl">CTA Link URL</label>
+          <input type="url" id="batchCtaUrl" placeholder="https://example.com/view">
+        </div>
+        <div>
+          <label for="batchCtaText">Button Text</label>
+          <input type="text" id="batchCtaText" placeholder="Click to View" value="Click to View">
+        </div>
+      </div>
+
+      <div class="options-row" style="margin-top: 8px;">
+        <div>
+          <label for="batchBlurRadius">Blur Strength</label>
+          <input type="range" id="batchBlurRadius" min="1" max="40" value="5" step="1"
+                 style="width: 100%; height: 8px; cursor: pointer;">
+        </div>
+        <div>
+          <label for="batchBlurPages">Pages to Blur</label>
+          <select id="batchBlurPages">
+            <option value="all" selected>All Pages</option>
+            <option value="first">First Page Only</option>
+            <option value="last">Last Page Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="options-row" style="margin-top: 8px;">
+        <div>
+          <label for="batchWatermark">Watermark Text <span style="font-weight:normal;color:#888;">(optional)</span></label>
+          <input type="text" id="batchWatermark" placeholder="e.g. PREVIEW">
+        </div>
+        <div>
+          <label for="batchDpi">Rendering Quality (DPI)</label>
+          <select id="batchDpi">
+            <option value="150">150 — Fast</option>
+            <option value="200" selected>200 — Default</option>
+            <option value="300">300 — High Quality</option>
+          </select>
+        </div>
+      </div>
+
+      <details style="margin-top: 12px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px;">
+        <summary style="cursor: pointer; font-weight: 600; color: #475569;">⚙️ Advanced Styling Options</summary>
+        <div class="options-row" style="margin-top: 10px;">
+          <div>
+            <label for="batchBlurStyle">Blur Style</label>
+            <select id="batchBlurStyle">
+              <option value="glass" selected>Frosted Glass</option>
+              <option value="standard">Standard Gaussian</option>
+            </select>
+          </div>
+          <div>
+            <label for="batchOverlayOpacity">Overlay Tint Strength</label>
+            <select id="batchOverlayOpacity">
+              <option value="0.10">10% — Subtle</option>
+              <option value="0.15" selected>15% — Default</option>
+              <option value="0.25">25% — Medium</option>
+              <option value="0.40">40% — Heavy</option>
+            </select>
+          </div>
+          <div>
+            <label for="batchOverlayColor">Overlay Tint</label>
+            <input type="color" id="batchOverlayColor" value="#FFFFFF" style="height: 38px; padding: 2px;">
+          </div>
+        </div>
+        <div class="options-row" style="margin-top: 8px;">
+          <div>
+            <label for="batchCtaStyle">Button Style</label>
+            <select id="batchCtaStyle">
+              <option value="rounded" selected>Rounded</option>
+              <option value="square">Square</option>
+              <option value="outline">Outline</option>
+              <option value="pill">Pill</option>
+              <option value="gradient">Gradient</option>
+              <option value="shadow3d">3D Shadow</option>
+              <option value="banner">Full-Width Banner</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          </div>
+          <div>
+            <label for="batchCtaBgColor">Button Color</label>
+            <input type="color" id="batchCtaBgColor" value="#2563EB" style="height: 38px; padding: 2px;">
+          </div>
+          <div>
+            <label for="batchCtaTextColor">Text Color</label>
+            <input type="color" id="batchCtaTextColor" value="#FFFFFF" style="height: 38px; padding: 2px;">
+          </div>
+          <div>
+            <label for="batchCtaIcon">Icon Prefix</label>
+            <select id="batchCtaIcon">
+              <option value="">None</option>
+              <option value=">>">&#187; Arrow</option>
+              <option value="[>]">[>] Play</option>
+              <option value="+">+ Plus</option>
+              <option value="->">&rarr; Right</option>
+              <option value="(i)">(i) Info</option>
+              <option value="*">* Star</option>
+              <option value="!">! Alert</option>
+            </select>
+          </div>
+        </div>
+        <div class="options-row" style="margin-top: 8px;">
+          <div>
+            <label for="batchCtaWidth">Button Width (pt)</label>
+            <select id="batchCtaWidth">
+              <option value="140">Small (140)</option>
+              <option value="180" selected>Medium (180)</option>
+              <option value="220">Large (220)</option>
+              <option value="280">Extra Large (280)</option>
+            </select>
+          </div>
+          <div>
+            <label for="batchCtaHeight">Button Height (pt)</label>
+            <select id="batchCtaHeight">
+              <option value="32">Compact (32)</option>
+              <option value="38">Default (38)</option>
+              <option value="44" selected>Comfortable (44)</option>
+              <option value="52">Large (52)</option>
+            </select>
+          </div>
+          <div>
+            <label for="batchCtaFontSize">Font Size (pt)</label>
+            <select id="batchCtaFontSize">
+              <option value="10">Small (10)</option>
+              <option value="12">Medium (12)</option>
+              <option value="14" selected>Default (14)</option>
+              <option value="16">Large (16)</option>
+            </select>
+          </div>
+          <div>
+            <label for="batchCtaBorderRadius">Corner Radius: <strong id="batchCtaBorderRadiusValue">8</strong></label>
+            <input type="range" id="batchCtaBorderRadius" min="0" max="24" value="8" step="1"
+                   style="width: 100%; height: 8px; cursor: pointer;"
+                   oninput="document.getElementById('batchCtaBorderRadiusValue').textContent = this.value">
+          </div>
+        </div>
+      </details>
+
+      <button class="btn btn-primary" id="btnBatch" disabled>
+        Process All PDFs
+      </button>
+      <div class="status" id="statusBatch"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB: Merge PDFs                                               -->
+    <!-- ============================================================ -->
+    <div class="card" id="tab-merge">
+      <h2>Merge PDFs</h2>
+      <p class="subtitle">Upload two or more PDF files and combine them into a single document.</p>
+
+      <div class="drop-zone" id="dropZoneMerge">
+        <input type="file" id="mergeFiles" accept=".pdf" multiple>
+        <div class="icon">📑</div>
+        <div class="label">Drag &amp; drop your PDF files here</div>
+        <div class="hint">or click to browse — select 2 or more .pdf files</div>
+      </div>
+      <div class="file-name" id="mergeFileNames"></div>
+
+      <div class="options-row" style="margin-top: 16px;">
+        <div>
+          <label for="mergeFilename">Output Filename</label>
+          <input type="text" id="mergeFilename" placeholder="merged.pdf">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btnMerge" disabled>
+        Merge &amp; Download PDF
+      </button>
+      <div class="status" id="statusMerge"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 4: Templates                                              -->
+    <!-- ============================================================ -->
+    <div class="card" id="tab-template">
+      <h2>Generate from Template</h2>
+      <p class="subtitle">Select a template, paste your JSON data, and generate a PDF.</p>
+
+      <label for="templateSelect">Template</label>
+      <select id="templateSelect">
+        <option value="invoice">Invoice</option>
+        <option value="resume">Resume / CV</option>
+        <option value="report">Report</option>
+        <option value="contract">Contract</option>
+        <option value="certificate">Certificate</option>
+        <option value="letter">Letter</option>
+      </select>
+
+      <label for="templateData">JSON Data</label>
+      <textarea id="templateData" rows="12" placeholder='Paste your JSON data here...'></textarea>
+
+      <div style="margin-top: 8px;">
+        <button style="background: none; border: none; color: #0f3460; font-size: 13px; cursor: pointer; font-weight: 600; padding: 0;" id="btnLoadExample">
+          📋 Load example data for selected template
+        </button>
+      </div>
+
+      <button class="btn btn-primary" id="btnTemplate">
+        Generate PDF
+      </button>
+      <div class="status" id="statusTemplate"></div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TAB 4: Raw Spec                                               -->
+    <!-- ============================================================ -->
+    <div class="card" id="tab-spec">
+      <h2>Build Custom PDF (Raw Spec)</h2>
+      <p class="subtitle">Write a JSON spec with elements (text, headings, tables, links, etc.) and generate any PDF you want.</p>
+
+      <label for="specData">Spec JSON</label>
+      <textarea id="specData" rows="14" placeholder='{
+  "elements": [
+    { "type": "heading", "level": 1, "value": "Hello World" },
+    { "type": "text", "value": "This is a custom PDF." },
+    { "type": "link", "value": "Click me", "url": "https://example.com" }
+  ]
+}'></textarea>
+
+      <button class="btn btn-primary" id="btnSpec">
+        Generate PDF
+      </button>
+      <div class="status" id="statusSpec"></div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    PDF Engine v1.0.0 — 
+    <a href="/health">Health Check</a> · 
+    <a href="/templates">Templates API</a> · 
+    <a href="https://github.com/Gaby2026x/node.js" target="_blank">GitHub</a>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- JavaScript                                                      -->
+  <!-- ============================================================== -->
+  <script>
+    // ---- Tab switching ----
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".card").forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+
+    // ---- Helpers ----
+    function setStatus(id, type, msg) {
+      const el = document.getElementById(id);
+      el.className = "status " + type;
+      el.innerHTML = msg;
+    }
+    function clearStatus(id) {
+      const el = document.getElementById(id);
+      el.className = "status";
+      el.innerHTML = "";
+    }
+
+    // ---- Pages to Blur preset handler ----
+    function handleBlurPagesPreset() {
+      const preset = document.getElementById("blurPagesPreset").value;
+      const customWrapper = document.getElementById("blurPagesCustomWrapper");
+      customWrapper.style.display = preset === "custom" ? "block" : "none";
+    }
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+    }
+
+    // ---- File upload / drag-drop ----
+    const dropZone = document.getElementById("dropZone");
+    const fileInput = document.getElementById("htmlFile");
+    const fileNameEl = document.getElementById("fileName");
+    const btnUpload = document.getElementById("btnUpload");
+    let selectedFile = null;
+
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files.length) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      fileNameEl.textContent = "✅ " + file.name + " (" + (file.size / 1024).toFixed(1) + " KB)";
+      btnUpload.disabled = false;
+      // Pre-fill output filename
+      const out = document.getElementById("uploadFilename");
+      if (!out.value) out.value = file.name.replace(/\.(html?|htm)$/i, "") + ".pdf";
+    }
+
+    // ---- Upload HTML → PDF ----
+    btnUpload.addEventListener("click", async () => {
+      if (!selectedFile) return;
+      btnUpload.disabled = true;
+      setStatus("statusUpload", "info", '<span class="spinner"></span> Reading file and generating PDF — this may take a moment for large files…');
+
+      try {
+        const htmlContent = await selectedFile.text();
+        const res = await fetch("/convert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            html: htmlContent,
+            filename: document.getElementById("uploadFilename").value || "converted.pdf",
+            options: { format: document.getElementById("uploadFormat").value },
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        const fname = document.getElementById("uploadFilename").value || "converted.pdf";
+        downloadBlob(blob, fname);
+        setStatus("statusUpload", "success", "✅ PDF generated and downloaded — <strong>" + fname + "</strong>");
+      } catch (err) {
+        setStatus("statusUpload", "error", "❌ " + err.message);
+      } finally {
+        btnUpload.disabled = false;
+      }
+    });
+
+    // ---- URL → PDF ----
+    document.getElementById("btnUrl").addEventListener("click", async () => {
+      const url = document.getElementById("urlInput").value.trim();
+      if (!url) return setStatus("statusUrl", "error", "❌ Please enter a URL.");
+      const btn = document.getElementById("btnUrl");
+      btn.disabled = true;
+      setStatus("statusUrl", "info", '<span class="spinner"></span> Navigating to URL and generating PDF…');
+
+      try {
+        const res = await fetch("/convert/url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            filename: document.getElementById("urlFilename").value || "page.pdf",
+            options: { format: document.getElementById("urlFormat").value },
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        const fname = document.getElementById("urlFilename").value || "page.pdf";
+        downloadBlob(blob, fname);
+        setStatus("statusUrl", "success", "✅ PDF generated — <strong>" + fname + "</strong>");
+      } catch (err) {
+        setStatus("statusUrl", "error", "❌ " + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---- PDF Overlay (upload PDF → blur + CTA) ----
+    const dropZonePdf = document.getElementById("dropZonePdf");
+    const pdfFileInput = document.getElementById("pdfFile");
+    const pdfFileNameEl = document.getElementById("pdfFileName");
+    const btnOverlay = document.getElementById("btnOverlay");
+    let selectedPdfFile = null;
+
+    // CTA type toggle — show/hide button vs QR fields
+    const ctaTypeSelect = document.getElementById("ctaType");
+    ctaTypeSelect.addEventListener("change", () => {
+      const isQr = ctaTypeSelect.value === "qrCode";
+      document.getElementById("buttonFields").style.display = isQr ? "none" : "block";
+      document.getElementById("qrFields").style.display = isQr ? "block" : "none";
+      document.getElementById("buttonStyling").style.display = isQr ? "none" : "block";
+    });
+
+    dropZonePdf.addEventListener("dragover", (e) => { e.preventDefault(); dropZonePdf.classList.add("dragover"); });
+    dropZonePdf.addEventListener("dragleave", () => dropZonePdf.classList.remove("dragover"));
+    dropZonePdf.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZonePdf.classList.remove("dragover");
+      if (e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]);
+    });
+    pdfFileInput.addEventListener("change", () => {
+      if (pdfFileInput.files.length) handlePdfFile(pdfFileInput.files[0]);
+    });
+
+    function handlePdfFile(file) {
+      selectedPdfFile = file;
+      pdfFileNameEl.textContent = "✅ " + file.name + " (" + (file.size / 1024).toFixed(1) + " KB)";
+      btnOverlay.disabled = false;
+      const out = document.getElementById("overlayFilename");
+      if (!out.value) out.value = file.name.replace(/\.pdf$/i, "") + "-overlay.pdf";
+    }
+
+    btnOverlay.addEventListener("click", async () => {
+      if (!selectedPdfFile) return;
+      btnOverlay.disabled = true;
+      setStatus("statusOverlay", "info", '<span class="spinner"></span> Generating preview — this may take a moment for multi-page PDFs…');
+
+      try {
+        const formData = buildOverlayFormData();
+        formData.append("preview", "true");  // Request inline display
+
+        const res = await fetch("/overlay?preview=true", { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        lastOverlayBlob = blob;
+
+        // Show preview in iframe
+        const previewUrl = URL.createObjectURL(blob);
+        document.getElementById("previewFrame").src = previewUrl;
+        document.getElementById("previewPanel").classList.add("active");
+
+        // Show draggable CTA marker
+        const marker = document.getElementById("ctaDragMarker");
+        marker.classList.add("active");
+        document.getElementById("dragHint").classList.add("active");
+
+        // Position marker at current CTA position
+        // ctaPosition.y is in PDF coords (0=bottom, 1=top), preview is screen coords (0=top)
+        const wrapper = document.getElementById("previewWrapper");
+        const wRect = wrapper.getBoundingClientRect();
+        const initX = Math.max(0, (ctaPosition.x * wRect.width) - (marker.offsetWidth / 2));
+        const initY = Math.max(0, ((1 - ctaPosition.y) * wRect.height) - (marker.offsetHeight / 2));
+        marker.style.left = initX + "px";
+        marker.style.top = initY + "px";
+
+        setStatus("statusOverlay", "success", "✅ Preview ready — drag the CTA marker to reposition, then download.");
+      } catch (err) {
+        setStatus("statusOverlay", "error", "❌ " + err.message);
+      } finally {
+        btnOverlay.disabled = false;
+      }
+    });
+
+    // ---- Build overlay form data (shared between preview and download) ----
+    function buildOverlayFormData(customCtaX, customCtaY) {
+      const formData = new FormData();
+      formData.append("file", selectedPdfFile);
+      formData.append("ctaType", document.getElementById("ctaType").value);
+      formData.append("ctaUrl", document.getElementById("ctaUrl").value || "");
+      formData.append("blurRadius", document.getElementById("blurRadius").value);
+      formData.append("blurStyle", document.getElementById("blurStyle").value);
+      formData.append("overlayOpacity", document.getElementById("overlayOpacity").value);
+      formData.append("overlayColor", document.getElementById("overlayColor").value || "#FFFFFF");
+      formData.append("filename", document.getElementById("overlayFilename").value || "overlay.pdf");
+
+      // Page range — determine from preset or custom input
+      const preset = document.getElementById("blurPagesPreset").value;
+      if (preset === "custom") {
+        const customRange = document.getElementById("blurPages").value.trim();
+        formData.append("blurPages", customRange || "all");
+      } else {
+        formData.append("blurPages", preset);
+      }
+
+      if (customCtaX !== undefined) formData.append("ctaX", String(customCtaX));
+      if (customCtaY !== undefined) formData.append("ctaY", String(customCtaY));
+
+      const isQr = document.getElementById("ctaType").value === "qrCode";
+      if (isQr) {
+        formData.append("ctaLabel", document.getElementById("ctaLabel").value || "Scan to View Document");
+        formData.append("qrSize", document.getElementById("qrSize").value);
+        formData.append("qrColor", document.getElementById("qrColor").value || "#1a1a2e");
+        formData.append("qrBackground", document.getElementById("qrBackground").value || "#FFFFFF");
+        formData.append("ctaFontSize", "14");
+      } else {
+        formData.append("ctaText", document.getElementById("ctaText").value || "Click to View");
+        formData.append("ctaBgColor", document.getElementById("ctaBgColor").value || "#2563EB");
+        formData.append("ctaTextColor", document.getElementById("ctaTextColor").value || "#FFFFFF");
+        formData.append("ctaWidth", document.getElementById("ctaWidth").value);
+        formData.append("ctaHeight", document.getElementById("ctaHeight").value);
+        formData.append("ctaFontSize", document.getElementById("ctaFontSize").value);
+        formData.append("ctaBorderRadius", document.getElementById("ctaBorderRadius").value);
+        formData.append("ctaStyle", document.getElementById("ctaStyle").value);
+        const ctaIcon = document.getElementById("ctaIcon").value;
+        if (ctaIcon) formData.append("ctaIcon", ctaIcon);
+      }
+
+      // DPI
+      formData.append("dpi", document.getElementById("dpi").value);
+
+      // Watermark
+      const wmText = document.getElementById("watermarkText").value.trim();
+      if (wmText) {
+        formData.append("watermarkText", wmText);
+        formData.append("watermarkColor", document.getElementById("watermarkColor").value || "#000000");
+        formData.append("watermarkOpacity", document.getElementById("watermarkOpacity").value);
+      }
+
+      // PDF Metadata
+      const metaTitle = document.getElementById("metaTitle").value.trim();
+      const metaAuthor = document.getElementById("metaAuthor").value.trim();
+      const metaSubject = document.getElementById("metaSubject").value.trim();
+      if (metaTitle) formData.append("metaTitle", metaTitle);
+      if (metaAuthor) formData.append("metaAuthor", metaAuthor);
+      if (metaSubject) formData.append("metaSubject", metaSubject);
+
+      return formData;
+    }
+
+    // ---- Preview: draggable CTA marker ----
+    let lastOverlayBlob = null;
+    let ctaPosition = { x: 0.5, y: 0.38 }; // default: center-x, lower-third
+
+    (function initDraggableCta() {
+      const marker = document.getElementById("ctaDragMarker");
+      const wrapper = document.getElementById("previewWrapper");
+      let isDragging = false;
+      let offsetX = 0, offsetY = 0;
+
+      marker.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        offsetX = e.clientX - marker.getBoundingClientRect().left;
+        offsetY = e.clientY - marker.getBoundingClientRect().top;
+        marker.style.cursor = "grabbing";
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        const wRect = wrapper.getBoundingClientRect();
+        let x = e.clientX - wRect.left - offsetX;
+        let y = e.clientY - wRect.top - offsetY;
+        // Clamp within wrapper
+        x = Math.max(0, Math.min(x, wRect.width - marker.offsetWidth));
+        y = Math.max(0, Math.min(y, wRect.height - marker.offsetHeight));
+        marker.style.left = x + "px";
+        marker.style.top = y + "px";
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        marker.style.cursor = "grab";
+        // Calculate position as fraction of page (0-1)
+        const wRect = wrapper.getBoundingClientRect();
+        const markerCenterX = (marker.offsetLeft + marker.offsetWidth / 2) / wRect.width;
+        const markerCenterY = (marker.offsetTop + marker.offsetHeight / 2) / wRect.height;
+        // Convert to PDF coords (y is inverted: 0=bottom, 1=top in PDF)
+        ctaPosition.x = Math.max(0, Math.min(1, markerCenterX));
+        ctaPosition.y = Math.max(0, Math.min(1, 1 - markerCenterY));
+      });
+
+      // Touch support for mobile
+      marker.addEventListener("touchstart", (e) => {
+        isDragging = true;
+        const touch = e.touches[0];
+        offsetX = touch.clientX - marker.getBoundingClientRect().left;
+        offsetY = touch.clientY - marker.getBoundingClientRect().top;
+        e.preventDefault();
+      });
+      document.addEventListener("touchmove", (e) => {
+        if (!isDragging) return;
+        const touch = e.touches[0];
+        const wRect = wrapper.getBoundingClientRect();
+        let x = touch.clientX - wRect.left - offsetX;
+        let y = touch.clientY - wRect.top - offsetY;
+        x = Math.max(0, Math.min(x, wRect.width - marker.offsetWidth));
+        y = Math.max(0, Math.min(y, wRect.height - marker.offsetHeight));
+        marker.style.left = x + "px";
+        marker.style.top = y + "px";
+      });
+      document.addEventListener("touchend", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        const wRect = wrapper.getBoundingClientRect();
+        const markerCenterX = (marker.offsetLeft + marker.offsetWidth / 2) / wRect.width;
+        const markerCenterY = (marker.offsetTop + marker.offsetHeight / 2) / wRect.height;
+        ctaPosition.x = Math.max(0, Math.min(1, markerCenterX));
+        ctaPosition.y = Math.max(0, Math.min(1, 1 - markerCenterY));
+      });
+    })();
+
+    // ---- Preview panel: Download button ----
+    document.getElementById("btnPreviewDownload").addEventListener("click", async () => {
+      const btn = document.getElementById("btnPreviewDownload");
+      btn.disabled = true;
+      btn.textContent = "⏳ Generating…";
+
+      try {
+        // Re-generate with the custom CTA position
+        const formData = buildOverlayFormData(ctaPosition.x, ctaPosition.y);
+        const res = await fetch("/overlay", { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        const fname = document.getElementById("overlayFilename").value || "overlay.pdf";
+        downloadBlob(blob, fname);
+        setStatus("statusOverlay", "success", "✅ PDF downloaded with custom CTA position — <strong>" + fname + "</strong>");
+      } catch (err) {
+        setStatus("statusOverlay", "error", "❌ " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "⬇ Download PDF";
+      }
+    });
+
+    // ---- Preview panel: Close button ----
+    document.getElementById("btnPreviewClose").addEventListener("click", () => {
+      const panel = document.getElementById("previewPanel");
+      panel.classList.remove("active");
+      document.getElementById("ctaDragMarker").classList.remove("active");
+      document.getElementById("dragHint").classList.remove("active");
+      const frame = document.getElementById("previewFrame");
+      if (frame.src) { URL.revokeObjectURL(frame.src); frame.src = ""; }
+    });
+
+    // ---- Batch Overlay ----
+    const dropZoneBatch = document.getElementById("dropZoneBatch");
+    const batchFilesInput = document.getElementById("batchFiles");
+    const batchFileNamesEl = document.getElementById("batchFileNames");
+    const btnBatch = document.getElementById("btnBatch");
+    let batchFileList = [];
+
+    dropZoneBatch.addEventListener("dragover", (e) => { e.preventDefault(); dropZoneBatch.classList.add("dragover"); });
+    dropZoneBatch.addEventListener("dragleave", () => dropZoneBatch.classList.remove("dragover"));
+    dropZoneBatch.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZoneBatch.classList.remove("dragover");
+      if (e.dataTransfer.files.length) handleBatchFiles(Array.from(e.dataTransfer.files));
+    });
+    batchFilesInput.addEventListener("change", () => {
+      if (batchFilesInput.files.length) handleBatchFiles(Array.from(batchFilesInput.files));
+    });
+
+    function handleBatchFiles(files) {
+      batchFileList = files.filter(f => f.name.toLowerCase().endsWith(".pdf")).slice(0, 10);
+      if (batchFileList.length < 1) {
+        batchFileNamesEl.textContent = "⚠️ Select at least 1 PDF file";
+        btnBatch.disabled = true;
+        return;
+      }
+      batchFileNamesEl.textContent = "✅ " + batchFileList.map(f => f.name).join(", ");
+      btnBatch.disabled = false;
+    }
+
+    btnBatch.addEventListener("click", async () => {
+      if (batchFileList.length < 1) return;
+      btnBatch.disabled = true;
+      setStatus("statusBatch", "info", '<span class="spinner"></span> Processing ' + batchFileList.length + ' PDF(s) — this may take a moment…');
+
+      try {
+        const formData = new FormData();
+        for (const file of batchFileList) {
+          formData.append("files", file);
+        }
+        formData.append("ctaUrl", document.getElementById("batchCtaUrl").value || "");
+        formData.append("ctaText", document.getElementById("batchCtaText").value || "Click to View");
+        formData.append("blurRadius", document.getElementById("batchBlurRadius").value);
+        formData.append("blurPages", document.getElementById("batchBlurPages").value);
+        formData.append("dpi", document.getElementById("batchDpi").value);
+        formData.append("blurStyle", document.getElementById("batchBlurStyle").value);
+        formData.append("overlayOpacity", document.getElementById("batchOverlayOpacity").value);
+        formData.append("overlayColor", document.getElementById("batchOverlayColor").value || "#FFFFFF");
+        formData.append("ctaStyle", document.getElementById("batchCtaStyle").value);
+        formData.append("ctaBgColor", document.getElementById("batchCtaBgColor").value || "#2563EB");
+        formData.append("ctaTextColor", document.getElementById("batchCtaTextColor").value || "#FFFFFF");
+        formData.append("ctaWidth", document.getElementById("batchCtaWidth").value);
+        formData.append("ctaHeight", document.getElementById("batchCtaHeight").value);
+        formData.append("ctaFontSize", document.getElementById("batchCtaFontSize").value);
+        formData.append("ctaBorderRadius", document.getElementById("batchCtaBorderRadius").value);
+        const batchIcon = document.getElementById("batchCtaIcon").value;
+        if (batchIcon) formData.append("ctaIcon", batchIcon);
+        const wm = document.getElementById("batchWatermark").value.trim();
+        if (wm) formData.append("watermarkText", wm);
+
+        const res = await fetch("/overlay/batch", { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        downloadBlob(blob, "batch-overlay.pdf");
+        setStatus("statusBatch", "success", "✅ Batch overlay complete — <strong>batch-overlay.pdf</strong> downloaded (" + batchFileList.length + " files processed)");
+      } catch (err) {
+        setStatus("statusBatch", "error", "❌ " + err.message);
+      } finally {
+        btnBatch.disabled = false;
+      }
+    });
+
+    // ---- Merge PDFs ----
+    const dropZoneMerge = document.getElementById("dropZoneMerge");
+    const mergeFilesInput = document.getElementById("mergeFiles");
+    const mergeFileNamesEl = document.getElementById("mergeFileNames");
+    const btnMerge = document.getElementById("btnMerge");
+    let mergeFileList = [];
+
+    dropZoneMerge.addEventListener("dragover", (e) => { e.preventDefault(); dropZoneMerge.classList.add("dragover"); });
+    dropZoneMerge.addEventListener("dragleave", () => dropZoneMerge.classList.remove("dragover"));
+    dropZoneMerge.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZoneMerge.classList.remove("dragover");
+      if (e.dataTransfer.files.length) handleMergeFiles(Array.from(e.dataTransfer.files));
+    });
+    mergeFilesInput.addEventListener("change", () => {
+      if (mergeFilesInput.files.length) handleMergeFiles(Array.from(mergeFilesInput.files));
+    });
+
+    function handleMergeFiles(files) {
+      mergeFileList = files.filter(f => f.name.toLowerCase().endsWith(".pdf"));
+      if (mergeFileList.length < 2) {
+        mergeFileNamesEl.textContent = "⚠️ Select at least 2 PDF files";
+        btnMerge.disabled = true;
+        return;
+      }
+      mergeFileNamesEl.textContent = "✅ " + mergeFileList.map(f => f.name).join(", ");
+      btnMerge.disabled = false;
+    }
+
+    btnMerge.addEventListener("click", async () => {
+      if (mergeFileList.length < 2) return;
+      btnMerge.disabled = true;
+      setStatus("statusMerge", "info", '<span class="spinner"></span> Merging ' + mergeFileList.length + ' PDFs…');
+
+      try {
+        const formData = new FormData();
+        for (const file of mergeFileList) {
+          formData.append("files", file);
+        }
+        formData.append("filename", document.getElementById("mergeFilename").value || "merged.pdf");
+
+        const res = await fetch("/merge", { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        const fname = document.getElementById("mergeFilename").value || "merged.pdf";
+        downloadBlob(blob, fname);
+        setStatus("statusMerge", "success", "✅ Merged PDF downloaded — <strong>" + fname + "</strong> (" + mergeFileList.length + " files combined)");
+      } catch (err) {
+        setStatus("statusMerge", "error", "❌ " + err.message);
+      } finally {
+        btnMerge.disabled = false;
+      }
+    });
+
+    // ---- Template generation ----
+    const EXAMPLE_DATA = {
+      invoice: {
+        company: { name: "Acme Corp", email: "billing@acmecorp.com", website: "https://acmecorp.com" },
+        client: { name: "Jane Smith", email: "jane@example.com" },
+        invoiceNumber: "INV-2026-001",
+        date: "2026-02-25",
+        dueDate: "2026-03-25",
+        items: [
+          { description: "Web Development (40 hrs)", quantity: 40, unitPrice: 150 },
+          { description: "UI/UX Design (20 hrs)", quantity: 20, unitPrice: 120 },
+          { description: "Server Setup", quantity: 1, unitPrice: 500 }
+        ],
+        taxRate: 0.1,
+        payment: { link: "https://pay.example.com/inv-2026-001", method: "Bank Transfer" }
+      },
+      resume: {
+        name: "John Doe",
+        title: "Senior Software Engineer",
+        email: "john@example.com",
+        phone: "+1-555-0100",
+        website: "https://johndoe.dev",
+        summary: "10+ years building scalable web applications.",
+        experience: [
+          { company: "TechCo", role: "Lead Engineer", period: "2022–Present", bullets: ["Led team of 8 engineers", "Reduced deploy time by 60%"] },
+          { company: "StartupXYZ", role: "Full-Stack Developer", period: "2018–2022", bullets: ["Built core product from scratch", "Grew user base to 50K"] }
+        ],
+        education: [
+          { institution: "MIT", degree: "B.S. Computer Science", year: "2018" }
+        ],
+        skills: ["JavaScript", "TypeScript", "Node.js", "React", "PostgreSQL", "AWS"]
+      },
+      report: {
+        title: "Q1 2026 Performance Report",
+        author: "Analytics Team",
+        date: "2026-03-01",
+        sections: [
+          { heading: "Executive Summary", body: "Revenue grew 12% quarter-over-quarter, driven by enterprise sales." },
+          { heading: "Key Metrics", bullets: ["Revenue: $54M (+12%)", "Active Users: 1.45M (+20.8%)", "NPS Score: 68 (+6)"] },
+          { heading: "Outlook", body: "We expect continued growth through Q2 with the launch of the new platform." }
+        ]
+      },
+      contract: {
+        title: "Consulting Services Agreement",
+        date: "2026-02-25",
+        partyA: { name: "Acme Corp", email: "legal@acmecorp.com" },
+        partyB: { name: "Jane Smith Consulting", email: "jane@consulting.com" },
+        clauses: [
+          { heading: "Scope of Work", body: "Consultant will provide software development services for Project Alpha." },
+          { heading: "Term", body: "This agreement is effective from March 1, 2026 to August 31, 2026." },
+          { heading: "Compensation", body: "Client will pay Consultant $15,000/month, invoiced on the 1st of each month." }
+        ],
+        signatures: {
+          partyA: "https://sign.example.com/acme",
+          partyB: "https://sign.example.com/jane"
+        }
+      },
+      certificate: {
+        title: "Certificate of Excellence",
+        recipientName: "Jane Doe",
+        description: "For outstanding contributions to Project Alpha and exceptional leadership.",
+        issuer: "Acme Corp",
+        date: "2026-02-25",
+        verifyUrl: "https://verify.acmecorp.com/cert/EXC-2026-001"
+      },
+      letter: {
+        sender: { name: "John Smith", address: "123 Business Ave, Suite 100, New York, NY 10001", email: "john@acmecorp.com" },
+        recipient: { name: "Jane Doe", address: "456 Corporate Blvd, Chicago, IL 60601" },
+        date: "2026-02-25",
+        subject: "Partnership Proposal",
+        body: "Dear Jane,\n\nI am writing to propose a strategic partnership between our organizations. After reviewing your recent work in the renewable energy sector, I believe there are significant opportunities for collaboration.\n\nI would welcome the chance to discuss this further at your earliest convenience.\n\nBest regards,\nJohn Smith\nCEO, Acme Corp"
+      }
+    };
+
+    document.getElementById("btnLoadExample").addEventListener("click", () => {
+      const template = document.getElementById("templateSelect").value;
+      document.getElementById("templateData").value = JSON.stringify(EXAMPLE_DATA[template] || {}, null, 2);
+    });
+
+    document.getElementById("btnTemplate").addEventListener("click", async () => {
+      const template = document.getElementById("templateSelect").value;
+      const raw = document.getElementById("templateData").value.trim();
+      if (!raw) return setStatus("statusTemplate", "error", "❌ Please enter JSON data or click 'Load example data'.");
+      let data;
+      try { data = JSON.parse(raw); } catch { return setStatus("statusTemplate", "error", "❌ Invalid JSON — please check your data."); }
+
+      const btn = document.getElementById("btnTemplate");
+      btn.disabled = true;
+      setStatus("statusTemplate", "info", '<span class="spinner"></span> Generating ' + template + ' PDF…');
+
+      try {
+        const res = await fetch("/generate/" + template, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        downloadBlob(blob, template + ".pdf");
+        setStatus("statusTemplate", "success", "✅ " + template + ".pdf generated and downloaded!");
+      } catch (err) {
+        setStatus("statusTemplate", "error", "❌ " + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---- Raw Spec ----
+    document.getElementById("btnSpec").addEventListener("click", async () => {
+      const raw = document.getElementById("specData").value.trim();
+      if (!raw) return setStatus("statusSpec", "error", "❌ Please enter a JSON spec.");
+      let spec;
+      try { spec = JSON.parse(raw); } catch { return setStatus("statusSpec", "error", "❌ Invalid JSON — please check your spec."); }
+
+      const btn = document.getElementById("btnSpec");
+      btn.disabled = true;
+      setStatus("statusSpec", "info", '<span class="spinner"></span> Generating PDF from spec…');
+
+      try {
+        const res = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ spec }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || "Server error");
+        }
+        const blob = await res.blob();
+        downloadBlob(blob, "document.pdf");
+        setStatus("statusSpec", "success", "✅ document.pdf generated and downloaded!");
+      } catch (err) {
+        setStatus("statusSpec", "error", "❌ " + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

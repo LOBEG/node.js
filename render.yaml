@@ -1,0 +1,12 @@
+# Render deployment — uses Docker so Chromium is installed via apt-get.
+# This permanently fixes the "Could not find Chrome" error.
+services:
+  - type: web
+    name: pdf-engine
+    runtime: docker
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
