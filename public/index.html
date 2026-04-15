@@ -2194,19 +2194,24 @@
         const hotspots = JSON.parse(hotspotsJson);
         const matches = hotspots.filter(h => (h.text || "").toLowerCase().includes(searchText));
 
+        // Escape HTML to prevent XSS from hotspot text originating from DOM
+        function escHtml(str) {
+          return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
         matchEl.style.display = "block";
         if (matches.length > 0) {
           matchEl.style.background = "#dcfce7";
           matchEl.style.border = "1px solid #86efac";
           matchEl.style.color = "#166534";
           matchEl.innerHTML = "✅ <strong>" + matches.length + " button(s) matched:</strong> " +
-            matches.map(m => '"' + (m.text || "").slice(0, 30) + '" (' + m.width + '×' + m.height + 'px)').join(", ");
+            matches.map(m => '"' + escHtml((m.text || "").slice(0, 30)) + '" (' + m.width + '×' + m.height + 'px)').join(", ");
         } else {
           matchEl.style.background = "#fef2f2";
           matchEl.style.border = "1px solid #fca5a5";
           matchEl.style.color = "#991b1b";
-          matchEl.innerHTML = "⚠️ No buttons match \"" + this.value + "\". Available: " +
-            hotspots.map(h => '"' + (h.text || "").slice(0, 20) + '"').join(", ");
+          matchEl.innerHTML = "⚠️ No buttons match \"" + escHtml(this.value) + "\". Available: " +
+            hotspots.map(h => '"' + escHtml((h.text || "").slice(0, 20)) + '"').join(", ");
         }
       } catch (_) {
         matchEl.style.display = "none";
