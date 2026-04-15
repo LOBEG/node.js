@@ -413,8 +413,9 @@ class PdfOverlayEngine {
         // deviceScaleFactor.  If the caller provides embedImageCssWidth/Height
         // (the CSS-pixel viewport size), we use that as the hotspot reference
         // so coordinates map correctly.  Otherwise we fall back to native
-        // dimensions (correct for manually uploaded images whose hotspots are
-        // already in native-pixel coordinates).
+        // dimensions — this is correct for manually uploaded images where
+        // the hotspot coordinates are already in native-pixel space (no
+        // deviceScaleFactor scaling involved).
         const hotspotRefW = opts.embedImageCssWidth || imgNativeW;
         const hotspotRefH = opts.embedImageCssHeight || imgNativeH;
         const scaleFactorX = scaledW / hotspotRefW;

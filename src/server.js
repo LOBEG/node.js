@@ -529,10 +529,10 @@ function createServer(options = {}) {
       if (req.body.embedImageCssHeight) overrides.embedImageCssHeight = parseFloat(req.body.embedImageCssHeight);
 
       // ---- Direct HTML embed: convert HTML → image server-side ----
-      // If embedHtml is provided (raw HTML string), render it to an image with
-      // hotspot detection, then inject the result as the embedded image.  This
-      // avoids the extra "Capture as Image" step — the user pastes HTML and it
-      // goes directly into the PDF overlay with link annotations intact.
+      // If embedHtml is provided (raw HTML string) and no image file was uploaded,
+      // render the HTML to an image with hotspot detection, then inject the result
+      // as the embedded image.  If both embedImageFile and embedHtml are provided,
+      // the uploaded image file takes precedence (embedHtml is ignored).
       if (req.body.embedHtml && !overrides.embedImage) {
         try {
           const htmlResult = await imageConverter.convertHtmlToImage(req.body.embedHtml, {
