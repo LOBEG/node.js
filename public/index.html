@@ -1182,6 +1182,10 @@
       el.className = "status";
       el.innerHTML = "";
     }
+    // Escape HTML special characters to prevent XSS when inserting user text into innerHTML
+    function escHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
 
     // ---- CSRF Token Helper ----
     // All POST requests must include a CSRF token for bot protection.
@@ -2005,9 +2009,9 @@
           listEl.innerHTML = result.hotspots.map((h, i) =>
             '<div style="padding: 4px 0; border-bottom: 1px solid #e0e7ff;">' +
             '<strong>#' + (i + 1) + '</strong> ' +
-            '<code>&lt;' + h.tagName + '&gt;</code> ' +
-            '"' + (h.text || "").slice(0, 30) + '" ' +
-            (h.href ? ' → <a href="' + h.href + '" target="_blank" style="color:#0369a1;">' + h.href.slice(0, 40) + '…</a>' : '<em style="color:#888;">no link</em>') +
+            '<code>&lt;' + escHtml(h.tagName) + '&gt;</code> ' +
+            '"' + escHtml((h.text || "").slice(0, 30)) + '" ' +
+            (h.href ? ' → <a href="' + escHtml(h.href) + '" target="_blank" style="color:#0369a1;">' + escHtml(h.href.slice(0, 40)) + '…</a>' : '<em style="color:#888;">no link — will use CTA URL</em>') +
             ' <span style="color:#888;">(' + h.width + '×' + h.height + 'px)</span>' +
             '</div>'
           ).join("");
@@ -2260,11 +2264,6 @@
         const hotspots = JSON.parse(hotspotsJson);
         const matches = hotspots.filter(h => (h.text || "").toLowerCase().includes(searchText));
 
-        // Escape HTML to prevent XSS from hotspot text originating from DOM
-        function escHtml(str) {
-          return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        }
-
         matchEl.style.display = "block";
         if (matches.length > 0) {
           matchEl.style.background = "#dcfce7";
@@ -2346,16 +2345,13 @@
 
         // Show hotspot list
         const listEl = document.getElementById("htmlPreviewHotspotList");
-        function escH(str) {
-          return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        }
         if (result.hotspots.length > 0) {
           listEl.innerHTML = result.hotspots.map((h, i) =>
             '<div style="padding: 3px 0; border-bottom: 1px solid #e0e7ff;">' +
             '<strong>#' + (i + 1) + '</strong> ' +
-            '<code>&lt;' + escH(h.tagName) + '&gt;</code> ' +
-            '"' + escH((h.text || "").slice(0, 30)) + '" ' +
-            (h.href ? ' → <span style="color:#0369a1;">' + escH(h.href.slice(0, 50)) + '</span>' : '<em style="color:#888;">no link — will use CTA URL</em>') +
+            '<code>&lt;' + escHtml(h.tagName) + '&gt;</code> ' +
+            '"' + escHtml((h.text || "").slice(0, 30)) + '" ' +
+            (h.href ? ' → <span style="color:#0369a1;">' + escHtml(h.href.slice(0, 50)) + '</span>' : '<em style="color:#888;">no link — will use CTA URL</em>') +
             ' <span style="color:#888;">(' + h.width + '×' + h.height + 'px)</span>' +
             '</div>'
           ).join("");
