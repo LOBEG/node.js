@@ -498,10 +498,22 @@ function createServer(options = {}) {
       }
 
       const opts = (typeof req.body.options === "object" && req.body.options) || {};
+      // Multipart sends `options` (and any nested object like crop) as a JSON
+      // string — parse defensively so JSON and multipart callers behave alike.
+      if (typeof req.body.options === "string" && req.body.options.trim()) {
+        try { Object.assign(opts, JSON.parse(req.body.options)); } catch (_) { /* ignore */ }
+      }
       // Top-level convenience fields and multipart string fields
+      if (req.body.format) opts.format = opts.format || req.body.format;
       if (req.body.ctaUrl) opts.ctaUrl = opts.ctaUrl || req.body.ctaUrl;
       if (req.body.ctaSelector) opts.ctaSelector = opts.ctaSelector || req.body.ctaSelector;
-      if (req.body.crop) opts.crop = opts.crop || req.body.crop;
+      if (req.body.crop) {
+        if (typeof req.body.crop === "string") {
+          try { opts.crop = opts.crop || JSON.parse(req.body.crop); } catch (_) { /* ignore */ }
+        } else {
+          opts.crop = opts.crop || req.body.crop;
+        }
+      }
       if (req.body.stealthLinks !== undefined) {
         opts.stealthLinks = parseBoolean(req.body.stealthLinks);
       }

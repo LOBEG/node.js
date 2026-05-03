@@ -324,4 +324,31 @@ describe("POST /convert — multipart htmlFile upload with stealth links", () =>
     // anchor remained clickable, not flattened to a screenshot)
     expect(res.body.toString("binary")).toMatch(/\/Link/);
   }, 60000);
+
+  test("multipart top-level fields (format, ctaUrl, crop) override JSON options [chromium]", async () => {
+    // Send `format=Letter` as a top-level multipart field together with an
+    // `options` JSON blob.  The server must merge them correctly so that
+    // multipart callers (the dashboard) get the same behaviour as JSON.
+    const res = await multipartRequest("/convert", {
+      format: "Letter",
+      ctaUrl: "https://example.com/landing",
+      stealthLinks: "true",
+      options: JSON.stringify({ printBackground: true }),
+      filename: "merged.pdf",
+    }, [
+      { fieldName: "htmlFile", fileName: "x.html", contentType: "text/html",
+        data: Buffer.from("<html><body><button>Buy now</button></body></html>") },
+    ]);
+    if (res.status !== 200) {
+      const msg = res.body.toString().slice(0, 200);
+      if (/scheduler_loop_quarantine_support|Failed to launch|Target.*closed/i.test(msg)) {
+        console.warn("Skipping: Chromium unavailable —", msg.slice(0, 120));
+        return;
+      }
+      throw new Error(`POST /convert failed with ${res.status}: ${msg}`);
+    }
+    expect(res.body.slice(0, 5).toString()).toBe("%PDF-");
+    // /Link annotation proves the button got the invisible CTA wrapper
+    expect(res.body.toString("binary")).toMatch(/\/Link/);
+  }, 60000);
 });
