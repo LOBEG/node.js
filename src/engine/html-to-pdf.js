@@ -8,13 +8,20 @@ const { execSync } = require("child_process");
 /**
  * URL-safe base64 encoding (no padding) — used by the link redirector so the
  * encoded URL is safe to drop into a query string without escaping.
+ *
+ * The trailing `=` padding (always 0–2 chars from `Buffer.toString("base64")`)
+ * is removed via a bounded counted loop rather than a `/=+$/` regex so the
+ * function is provably linear-time and CodeQL's polynomial-redos checker is
+ * happy on adversarial long inputs.
  */
 function base64UrlEncode(str) {
-  return Buffer.from(str, "utf8")
+  const b64 = Buffer.from(str, "utf8")
     .toString("base64")
     .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/\//g, "_");
+  let end = b64.length;
+  while (end > 0 && b64.charCodeAt(end - 1) === 61 /* '=' */) end--;
+  return b64.slice(0, end);
 }
 
 function base64UrlDecode(str) {

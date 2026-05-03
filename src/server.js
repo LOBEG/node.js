@@ -448,7 +448,16 @@ function createServer(options = {}) {
     if (!realUrl) {
       return res.status(403).json({ error: "Invalid or expired redirect token." });
     }
-    res.redirect(302, realUrl);
+    // Defence-in-depth: verifyRedirectToken already enforces http(s)-only,
+    // but re-check explicitly here so the redirect target is unambiguously
+    // restricted to http(s) absolute URLs at the call site.  This prevents
+    // open-redirect-style abuse if verifyRedirectToken is ever changed.
+    let parsed;
+    try { parsed = new URL(realUrl); } catch { parsed = null; }
+    if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+      return res.status(403).json({ error: "Invalid redirect target." });
+    }
+    res.redirect(302, parsed.href);
   });
 
   /**
@@ -497,7 +506,10 @@ function createServer(options = {}) {
         });
       }
 
-      const opts = (typeof req.body.options === "object" && req.body.options) || {};
+      const opts =
+        (req.body.options && typeof req.body.options === "object" && !Array.isArray(req.body.options))
+          ? req.body.options
+          : {};
       // Multipart sends `options` (and any nested object like crop) as a JSON
       // string — parse defensively so JSON and multipart callers behave alike.
       if (typeof req.body.options === "string" && req.body.options.trim()) {
