@@ -782,26 +782,25 @@ class HtmlToPdfConverter {
    */
   async _waitForFullContent(page, timeoutMs) {
     const budget = Math.max(1000, Math.min(timeoutMs || 30000, 60000));
+    // Hard cap on auto-scroll iterations so an infinite-scroll page (where
+    // scrollHeight grows after every scroll) can't trap us in this pass.
+    const MAX_SCROLL_ITERATIONS = 200;
     try {
-      await page.evaluate(async (budgetMs) => {
+      await page.evaluate(async (budgetMs, maxScrollIterations) => {
         const deadline = Date.now() + budgetMs;
         const remaining = () => Math.max(0, deadline - Date.now());
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const withTimeout = (p, ms) =>
           Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
 
-        // 1. Promote lazy images to eager + start decoding.
+        // 1. Promote lazy images to eager + start decoding.  decode() returns
+        //    a promise that resolves once the image is fetched and rasterised,
+        //    so calling it on a not-yet-loaded image is what kicks the loader.
         const imgs = Array.from(document.images || []);
         for (const img of imgs) {
           try {
             if (img.getAttribute("loading") === "lazy") {
               img.setAttribute("loading", "eager");
-            }
-            // Re-assigning currentSrc isn't allowed, but touching `src` triggers
-            // the loader for any image whose lazy state was deferred.
-            if (!img.complete && img.src) {
-              // eslint-disable-next-line no-self-assign
-              img.src = img.src;
             }
             if (typeof img.decode === "function") {
               img.decode().catch(() => {});
@@ -816,7 +815,7 @@ class HtmlToPdfConverter {
           document.documentElement ? document.documentElement.scrollHeight : 0
         );
         let y = 0;
-        let safety = 200; // hard cap on iterations to avoid pathological pages
+        let safety = maxScrollIterations;
         while (y < maxScroll() && safety-- > 0 && remaining() > 0) {
           window.scrollTo(0, y);
           await sleep(50);
@@ -842,7 +841,7 @@ class HtmlToPdfConverter {
         if (pending.length) {
           await withTimeout(Promise.all(pending), remaining());
         }
-      }, budget);
+      }, budget, MAX_SCROLL_ITERATIONS);
     } catch (_err) {
       // Never let a content-readiness failure break the conversion itself.
     }
